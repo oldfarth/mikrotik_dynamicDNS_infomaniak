@@ -17,7 +17,7 @@
 ############################################################################ 
 # ===== KONFIGURATION ===== 
 # WAN-Interface,von dem die IP-Adresse abgefragt wird
-:local wanInterface \"wan\" 
+:local wanInterface "wan" 
 # Infomaniak Zugangsdaten
 :local username "XXXXXXXXXXX"
 :local password "YYYYYYYYYYYYYY" 
@@ -31,7 +31,7 @@
 }
 
 # ===== VARIABLEN =====
-:local url \"dummy\":local previousIP
+:local url "dummy":local previousIP
 :local currentIP
 :local updateNeeded false
 :local updateResults ""
@@ -49,7 +49,7 @@
 # ----- Vorherige IP-Adresse abrufen -----
 :if ([:len [/file find name=infomaniak.txt]] > 0) do= {
   :local ipfile [/file get infomaniak.txt contents]:local ipstart ([find $ipfile " " -1] + 1)
-  :local ipend ([:len \$ipfile])
+  :local ipend ([:len $ipfile])
   :set previousIP [:pick $ipfile $ipstart $ipend]
   :log info "Vorherige IP aus Datei gelesen:$previousIP"
 }
@@ -60,14 +60,14 @@ else= {
 
 # ----- Prüfen,ob Updates notwendig sind -----
 :if ($currentIP != $previousIP) do= {
-  :log info \"IP-Änderung erkannt:$previousIP -> $currentIP"
+  :log info "IP-Änderung erkannt:$previousIP -> $currentIP"
   :set updateNeeded true
 }
 else= {
-  :log info \"IP-Adresse unverändert:\$currentIP\" 
+  :log info "IP-Adresse unverändert:$currentIP" 
   # Auch wenn die IP gleich ist,prüfen wir jede Domain einzeln 
   # Falls eine Domain neu hinzugefügt wurde oder ein vorheriges Update fehlgeschlagen ist
-  :foreach hostname in=\$hostnames do= {
+  :foreach hostname in=$hostnames do= {
     :local domainFile ("infomaniak_" . $hostname . ".txt")
     :if ([:len [/file find name=$domainFile]] = 0) 
     do= {
@@ -78,20 +78,20 @@ else= {
 }
 
 # ----- Updates durchführen,falls notwendig -----
-:if (\$updateNeeded) do= {
+:if ($updateNeeded) do= {
   :log info "Starte Aktualisierung für alle konfigurierten Domains..." 
   # Für jede Domain ein Update durchführen
-  :foreach hostname in=\$hostnames do= {
-    :log info \"Verarbeite Domain:\$hostname\" 
-    # Update-URL erstellen (Hinweis:\"\\3F\" ist Hex für Fragezeichen)
-    :local url \"https://infomaniak.com/nic/update\\3Fhostname=$hostname&myip=$currentIP"
+  :foreach hostname in=$hostnames do= {
+    :log info "Verarbeite Domain:$hostname" 
+    # Update-URL erstellen (Hinweis:"\3F" ist Hex für Fragezeichen)
+    :local url "https://infomaniak.com/nic/update\3Fhostname=$hostname&myip=$currentIP"
     :local domainFile ("infomaniak_" . $hostname . ".txt")
     :log info "Sende Update-Anfrage für $hostname..."
     :do {
-      /tool fetch url=(\$url) user=\$username password=\$password mode=https dst-path=( $domainFile)
+      /tool fetch url=($url) user=$username password=$password mode=https dst-path=( $domainFile)
       :delay 1
       :if ([:len [/file find name=$domainFile]] > 0) do= {
-        :local result [/file get \$domainFile contents]
+        :local result [/file get $domainFile contents]
         :log info "Update-Ergebnis für $hostname:$result"
         :set updateResults ($updateResults . "$hostname:$result\n")
       }
@@ -121,4 +121,4 @@ else= {
 else= {
   :log info "Keine Updates erforderlich für alle konfigurierten Domains"
 }
-:log info \"=== INFOMANIAK DDNS UPDATE ABGESCHLOSSEN (\$timestamp) ===\"" start-time=startup
+:log info "=== INFOMANIAK DDNS UPDATE ABGESCHLOSSEN ($timestamp) ==="" start-time=startup
