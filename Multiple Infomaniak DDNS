@@ -1,0 +1,124 @@
+/system scheduler add name="Update Multiple Infomaniak DDNS" interval=15m on-event="
+############################################################################ 
+# 
+# 
+# INFOMANIAK DYNAMIC DNS UPDATE SCRIPT FÜR MEHRERE DOMAINS 
+# 
+# 
+# 
+# Version 3.0 
+# 
+# Autor: 
+# 
+# Datum:08.05.2025 
+# 
+# 
+# 
+############################################################################ 
+# ===== KONFIGURATION ===== 
+# WAN-Interface,von dem die IP-Adresse abgefragt wird
+:local wanInterface \"wan\" 
+# Infomaniak Zugangsdaten
+:local username "XXXXXXXXXXX"
+:local password "YYYYYYYYYYYYYY" 
+
+# Array mit Hostnamen definieren (fügen Sie hier alle Ihre Domains hinzu)
+:local hostnames {
+  "xyz.ch";
+  "wwww.ch";
+  "example.com";
+  # Fügen Sie weitere Domains nach Bedarf hinzu
+}
+
+# ===== VARIABLEN =====
+:local url \"dummy\":local previousIP
+:local currentIP
+:local updateNeeded false
+:local updateResults ""
+:local timestamp [/system clock get date] . " " . [/system clock get time] 
+
+# ===== HAUPTPROGRAMM =====
+:log info "=== INFOMANIAK DDNS UPDATE GESTARTET ($timestamp) ===" 
+
+# ----- IP-Adresse ermitteln -----
+:log info "Ermittle aktuelle WAN-IP-Adresse..."
+:local fullIP [/ip address get [/ip address find interface=$wanInterface] address]
+:set currentIP [:pick $fullIP 0 [:find $fullIP ""]]
+:log info "Aktuelle WAN-IP:$currentIP" 
+
+# ----- Vorherige IP-Adresse abrufen -----
+:if ([:len [/file find name=infomaniak.txt]] > 0) do= {
+  :local ipfile [/file get infomaniak.txt contents]:local ipstart ([find $ipfile " " -1] + 1)
+  :local ipend ([:len \$ipfile])
+  :set previousIP [:pick $ipfile $ipstart $ipend]
+  :log info "Vorherige IP aus Datei gelesen:$previousIP"
+}
+else= {
+  :set previousIP "0.0.0.0"
+  :log info "Keine vorherige IP gefunden,setze auf 0.0.0.0"
+}
+
+# ----- Prüfen,ob Updates notwendig sind -----
+:if ($currentIP != $previousIP) do= {
+  :log info \"IP-Änderung erkannt:$previousIP -> $currentIP"
+  :set updateNeeded true
+}
+else= {
+  :log info \"IP-Adresse unverändert:\$currentIP\" 
+  # Auch wenn die IP gleich ist,prüfen wir jede Domain einzeln 
+  # Falls eine Domain neu hinzugefügt wurde oder ein vorheriges Update fehlgeschlagen ist
+  :foreach hostname in=\$hostnames do= {
+    :local domainFile ("infomaniak_" . $hostname . ".txt")
+    :if ([:len [/file find name=$domainFile]] = 0) 
+    do= {
+      :log info "Keine vorherige Aktualisierung für $hostname gefunden"
+      :set updateNeeded true
+    }
+  }
+}
+
+# ----- Updates durchführen,falls notwendig -----
+:if (\$updateNeeded) do= {
+  :log info "Starte Aktualisierung für alle konfigurierten Domains..." 
+  # Für jede Domain ein Update durchführen
+  :foreach hostname in=\$hostnames do= {
+    :log info \"Verarbeite Domain:\$hostname\" 
+    # Update-URL erstellen (Hinweis:\"\\3F\" ist Hex für Fragezeichen)
+    :local url \"https://infomaniak.com/nic/update\\3Fhostname=$hostname&myip=$currentIP"
+    :local domainFile ("infomaniak_" . $hostname . ".txt")
+    :log info "Sende Update-Anfrage für $hostname..."
+    :do {
+      /tool fetch url=(\$url) user=\$username password=\$password mode=https dst-path=( $domainFile)
+      :delay 1
+      :if ([:len [/file find name=$domainFile]] > 0) do= {
+        :local result [/file get \$domainFile contents]
+        :log info "Update-Ergebnis für $hostname:$result"
+        :set updateResults ($updateResults . "$hostname:$result\n")
+      }
+      else= {
+        :log error "Fehler beim Abrufen des Update-Ergebnisses für $hostname"
+        :set updateResults ($updateResults . "$hostname:Update fehlgeschlagen\n")
+      }
+    }on-error= {
+      :log error "Fehler bei der Verbindung zu Infomaniak für $hostname"
+      :set updateResults ($updateResults . "$hostname:Verbindungsfehler\n")
+    }
+  }
+  # Speichern der aktuellen IP für zukünftige Vergleiche 
+  /file print file=infomaniak.txt /file set infomaniak.txt contents="Current IP $currentIP"
+  :log info "Aktuelle IP $currentIP in Datei gespeichert" 
+  # Optional:Senden einer E-Mail-Benachrichtigung über die Updates
+  :local emailSubject "Infomaniak DDNS Update für mehrere Domains"
+  :local emailBody "DDNS-Update für mehrere Domains abgeschlossen\n\n"
+  :set emailBody ($emailBody . "Zeitpunkt:$timestamp\n")
+  :set emailBody ($emailBody . "Neue IP:$currentIP\n")
+  :set emailBody ($emailBody . "Vorherige IP:$previousIP\n\n")
+  :set emailBody ($emailBody . "Update-Ergebnisse:\n$updateResults") 
+  # Uncomment the following lines if you want email notifications 
+  # /tool e-mail send to="your-email@example.com" subject=$emailSubject body=$emailBody 
+  #:log info "Benachrichtigungs-E-Mail gesendet"
+}
+else= {
+  :log info "Keine Updates erforderlich für alle konfigurierten Domains"
+}
+:log info \"=== INFOMANIAK DDNS UPDATE ABGESCHLOSSEN (\$timestamp) ===\"" start-time=startup
