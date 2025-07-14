@@ -1,4 +1,4 @@
-/system scheduler add name="Update Multiple Infomaniak DDNS" interval=15m on-event="
+#/system scheduler add name="Update Multiple Infomaniak DDNS" interval=15m on-event="
 ############################################################################ 
 # 
 # 
